@@ -25,6 +25,16 @@ impl DelayLine {
         }
     }
 
+    pub fn new_absolute(sample_rate: f32, len: usize) -> Self {
+        Self {
+            buf: BitMaskRB::<f32>::new(len, 0.0),
+            sample_rate,
+            pos: 0,
+            h: [0.0, 1.0, 0.0, 0.0],
+            time_prev: 0.,
+        }
+    }
+
     pub fn push(&mut self, s: f32) {
         self.pos += 1;
         *self.buf.get_mut(self.pos) = s;
@@ -47,9 +57,10 @@ impl DelayLine {
         k_ap * v + d
     }
 
-    // pub fn go_back_int_s(&mut self, samples: isize) -> f32 {
-    // 	self.buf[self.pos - samples]
-    // }
+    #[must_use]
+    pub fn go_back_int_s(&mut self, samples: isize) -> f32 {
+        self.buf[self.pos - samples]
+    }
 
     #[must_use]
     pub fn go_back_linear(&self, time: f32) -> f32 {
