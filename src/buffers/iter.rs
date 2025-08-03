@@ -170,6 +170,14 @@ pub trait BlockIterator {
     {
         SplitAtEvents::new(self, events)
     }
+
+    #[inline]
+    fn chunks(self, length: usize) -> Chunks<Self>
+    where
+        Self: Sized,
+    {
+        Chunks::new(self, length)
+    }
 }
 
 impl<'a, 'b> IntoBlocks for Buffers<'a, 'b> {
@@ -379,5 +387,30 @@ impl<'e, B: BlockIterator> Iterator for SplitAtEvents<'e, B> {
         self.events = self.events.slice(event_count..).unwrap();
 
         Some((buffer, events))
+    }
+}
+
+pub struct Chunks<B> {
+    blocks: B,
+    length: usize,
+}
+
+impl<B> Chunks<B> {
+    fn new(blocks: B, length: usize) -> Chunks<B> {
+        Chunks { blocks, length }
+    }
+}
+
+impl<B: BlockIterator> Iterator for Chunks<B> {
+    type Item = B::Block;
+
+    #[inline]
+    fn next(&mut self) -> Option<B::Block> {
+        let len = self.blocks.len();
+        if len == 0 {
+            return None;
+        }
+        let buffer = self.blocks.next_block(self.length);
+        Some(buffer)
     }
 }
