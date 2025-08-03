@@ -1,3 +1,6 @@
+use crate::dsp::onepole::OnePole;
+use crate::dsp::simper::Filter;
+use crate::dsp::smooth::SmoothBuffer;
 use crate::dsp::*;
 use crate::Params;
 
@@ -11,25 +14,117 @@ use coupler::events::Data;
 use coupler::events::Event;
 use coupler::events::Events;
 use coupler::params::Params as CouplerParams;
-use log::error;
+use log::info;
 
 pub const MAX_BUF_SIZE: usize = 64;
 
+fn tube(x: f32) -> f32 {
+    let w = x.max(0.0);
+    let s = x + 0.13 * w.powi(3) + 0.407 * w.powi(4);
+    softclip(s)
+}
+
 struct Track {
-    gain: f32,
+    gain_in: SmoothBuffer,
+    gain_out: SmoothBuffer,
+    balance: SmoothBuffer,
+
+    release: f32,
+    peak: f32,
+
+    peak_input_filter: Filter,
+    peak_filter: Filter,
+    highpass_out: Filter,
+
+    pre_filter: OnePole,
+    post_filter: OnePole,
 }
 
 impl Track {
-    fn new() -> Self {
-        Track { gain: 1.0 }
+    fn new(sample_rate: f32) -> Self {
+        let mut peak_input_filter = Filter::new(sample_rate);
+        peak_input_filter.set_highpass(50.0, 0.7);
+
+        let mut peak_filter = Filter::new(sample_rate);
+        peak_filter.set_lowpass(5.0, 0.7);
+
+        let mut highpass_out = Filter::new(sample_rate);
+        highpass_out.set_highpass(10.0, 0.7);
+
+        let mut pre_filter = OnePole::new(sample_rate);
+        pre_filter.set_tilt(180.0, 4.5);
+
+        let mut post_filter = OnePole::new(sample_rate);
+        post_filter.set_tilt(180.0, -4.5);
+
+        let release = time_constant(360.0, sample_rate);
+        info!("release = {release:?}");
+
+        Track {
+            gain_in: SmoothBuffer::new(),
+            gain_out: SmoothBuffer::new(),
+            balance: SmoothBuffer::new(),
+
+            release,
+            peak: 0.0,
+
+            peak_input_filter,
+            peak_filter,
+            highpass_out,
+            pre_filter,
+            post_filter,
+        }
     }
 
-    fn process(&mut self, x: f32) -> f32 {
-        return x * self.gain;
+    fn process(&mut self, samples: &mut [f32]) {
+        let n = samples.len();
+        self.gain_in.process_buffer(n);
+        self.gain_out.process_buffer(n);
+        self.balance.process_buffer(n);
+
+        for (i, x) in samples.iter_mut().enumerate() {
+            let mut s = (*x) * self.gain_in.get(i);
+
+            let peak = self.peak_input_filter.process(s).abs();
+
+            if peak > self.peak {
+                self.peak = peak
+            } else {
+                self.peak = self.peak - (self.peak - peak) * self.release
+            }
+
+            let w = self.peak_filter.process(self.peak);
+
+            s = self.pre_filter.process(s);
+
+            let mut out = tube(s + 0.25 - 0.36 * w);
+
+            out = self.post_filter.process(out);
+            out = self.highpass_out.process(out);
+            out *= self.gain_out.get(i);
+
+            let balance = self.balance.get(i);
+            *x = lerp(*x, out, balance);
+        }
     }
 
     fn set_params(&mut self, params: &Params) {
-        self.gain = from_db(params.gain);
+        self.balance.set(params.balance);
+        self.gain_in.set(from_db(params.gain));
+
+        let mut gain_out = 1.0;
+
+        if params.gain > 0.0 {
+            gain_out *= from_db(-params.gain * 0.75);
+        } else {
+            gain_out *= from_db(-params.gain);
+        }
+
+        gain_out *= from_db(params.gain_out);
+
+        self.gain_out.set(gain_out);
+
+        // self.gain_out.set(from_db(params.gain_out));
     }
 }
 
@@ -44,11 +139,15 @@ impl PluginEngine {
         let format = &config.layout.formats[0];
 
         let n_channels = format.channel_count();
+        let sample_rate = config.sample_rate as f32;
+
+        info!("n_channels = {n_channels:?}");
+        info!("sample_rate = {sample_rate:?}");
 
         let mut tracks = Vec::new();
 
         for _ in 0..n_channels {
-            tracks.push(Track::new());
+            tracks.push(Track::new(sample_rate));
         }
 
         PluginEngine { params, tracks }
@@ -82,21 +181,10 @@ impl Engine for PluginEngine {
                 track.set_params(&self.params);
             }
 
-            for mut block in buffer.into_blocks().chunks(MAX_BUF_SIZE) {
-                for sample in block.samples() {
-                    for (x, track) in sample.into_iter().zip(self.tracks.iter_mut()) {
-                        *x = track.process(*x);
-                    }
+            for block in buffer.into_blocks().chunks(MAX_BUF_SIZE) {
+                for (buffer, track) in block.into_iter().zip(self.tracks.iter_mut()) {
+                    track.process(buffer);
                 }
-
-                // for channel in block {
-                //     // error!("{}", channel.len());
-                //     // todo!()
-                //     // for x in channel {}
-                //     // panic!("Hello!");
-                // }
-
-                panic!("Test");
             }
         }
     }

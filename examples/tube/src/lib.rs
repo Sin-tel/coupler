@@ -24,17 +24,20 @@ use coupler::{bus::*, host::*, view::*};
 
 #[derive(CouplerParams, Serialize, Deserialize, Clone)]
 pub struct Params {
-    #[param(id = 0, name = "Gain", range = -12.0..12.0, format = "{:.2}dB")]
+    #[param(id = 0, name = "Dry/Wet", range = 0.0..1.0, format = "{:.2}")]
+    balance: f32,
+    #[param(id = 1, name = "Gain", range = -12.0..12.0, format = "{:.2}dB")]
     gain: f32,
-    #[param(id = 1, name = "Output gain", range = 0.0..12.0, format = "{:.2}dB")]
-    out_gain: f32,
+    #[param(id = 2, name = "Output gain", range = 0.0..12.0, format = "{:.2}dB")]
+    gain_out: f32,
 }
 
 impl Default for Params {
     fn default() -> Params {
         Params {
+            balance: 1.0,
             gain: 0.0,
-            out_gain: 0.0,
+            gain_out: 0.0,
         }
     }
 }
