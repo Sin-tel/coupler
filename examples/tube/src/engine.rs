@@ -19,8 +19,8 @@ use coupler::params::Params as CouplerParams;
 use log::info;
 
 pub const MAX_BUF_SIZE: usize = 64;
-const RESAMPLE_FACTOR: f32 = 2.0;
-const RESAMPLE_DELAY: isize = 16;
+pub const RESAMPLE_FACTOR: f32 = 2.0;
+pub const RESAMPLE_DELAY: u64 = 16;
 
 fn tube(x: f32) -> f32 {
     let w = x.max(0.0);
@@ -130,7 +130,7 @@ impl Track {
             let y = self.downsampler.process(y1, y2);
 
             self.dry_delay.push(*sample);
-            let dry = self.dry_delay.go_back_int_s(RESAMPLE_DELAY);
+            let dry = self.dry_delay.go_back_int_s(RESAMPLE_DELAY as isize);
 
             let balance = self.balance.get(i);
             *sample = lerp(dry, y, balance);
