@@ -1,0 +1,1 @@
+coupler::clap!(tube::Plugin);
