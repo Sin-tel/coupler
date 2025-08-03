@@ -1,4 +1,6 @@
+use crate::dsp::delayline::DelayLine;
 use crate::dsp::onepole::OnePole;
+use crate::dsp::resample::*;
 use crate::dsp::simper::Filter;
 use crate::dsp::smooth::SmoothBuffer;
 use crate::dsp::*;
@@ -17,6 +19,8 @@ use coupler::params::Params as CouplerParams;
 use log::info;
 
 pub const MAX_BUF_SIZE: usize = 64;
+const RESAMPLE_FACTOR: f32 = 2.0;
+const RESAMPLE_DELAY: isize = 16;
 
 fn tube(x: f32) -> f32 {
     let w = x.max(0.0);
@@ -38,26 +42,31 @@ struct Track {
 
     pre_filter: OnePole,
     post_filter: OnePole,
+
+    dry_delay: DelayLine,
+    upsampler: Upsampler19,
+    downsampler: Downsampler51,
 }
 
 impl Track {
     fn new(sample_rate: f32) -> Self {
-        let mut peak_input_filter = Filter::new(sample_rate);
+        let internal_sr = sample_rate * RESAMPLE_FACTOR;
+        let mut peak_input_filter = Filter::new(internal_sr);
         peak_input_filter.set_highpass(50.0, 0.7);
 
-        let mut peak_filter = Filter::new(sample_rate);
+        let mut peak_filter = Filter::new(internal_sr);
         peak_filter.set_lowpass(5.0, 0.7);
 
-        let mut highpass_out = Filter::new(sample_rate);
+        let mut highpass_out = Filter::new(internal_sr);
         highpass_out.set_highpass(10.0, 0.7);
 
-        let mut pre_filter = OnePole::new(sample_rate);
+        let mut pre_filter = OnePole::new(internal_sr);
         pre_filter.set_tilt(180.0, 4.5);
 
-        let mut post_filter = OnePole::new(sample_rate);
+        let mut post_filter = OnePole::new(internal_sr);
         post_filter.set_tilt(180.0, -4.5);
 
-        let release = time_constant(360.0, sample_rate);
+        let release = time_constant(360.0, internal_sr);
         info!("release = {release:?}");
 
         Track {
@@ -73,7 +82,37 @@ impl Track {
             highpass_out,
             pre_filter,
             post_filter,
+
+            dry_delay: DelayLine::new_absolute(sample_rate, 32),
+            upsampler: Upsampler19::default(),
+            downsampler: Downsampler51::default(),
         }
+    }
+
+    fn process_sample(&mut self, i: usize, x: f32) -> f32 {
+        let mut s = x * self.gain_in.get(i);
+
+        let peak = self.peak_input_filter.process(s).abs();
+
+        if peak > self.peak {
+            self.peak = peak
+        } else {
+            self.peak = self.peak - (self.peak - peak) * self.release
+        }
+
+        let w = self.peak_filter.process(self.peak);
+
+        s = self.pre_filter.process(s);
+
+        let mut out = tube(s + 0.25 - 0.36 * w);
+
+        out = self.post_filter.process(out);
+        out = self.highpass_out.process(out);
+        out *= self.gain_out.get(i);
+
+        out
+        // let balance = self.balance.get(i);
+        // return lerp(x, out, balance);
     }
 
     fn process(&mut self, samples: &mut [f32]) {
@@ -82,29 +121,19 @@ impl Track {
         self.gain_out.process_buffer(n);
         self.balance.process_buffer(n);
 
-        for (i, x) in samples.iter_mut().enumerate() {
-            let mut s = (*x) * self.gain_in.get(i);
+        for (i, sample) in samples.iter_mut().enumerate() {
+            let (u1, u2) = self.upsampler.process(*sample);
 
-            let peak = self.peak_input_filter.process(s).abs();
+            let y1 = self.process_sample(i, u1);
+            let y2 = self.process_sample(i, u2);
 
-            if peak > self.peak {
-                self.peak = peak
-            } else {
-                self.peak = self.peak - (self.peak - peak) * self.release
-            }
+            let y = self.downsampler.process(y1, y2);
 
-            let w = self.peak_filter.process(self.peak);
-
-            s = self.pre_filter.process(s);
-
-            let mut out = tube(s + 0.25 - 0.36 * w);
-
-            out = self.post_filter.process(out);
-            out = self.highpass_out.process(out);
-            out *= self.gain_out.get(i);
+            self.dry_delay.push(*sample);
+            let dry = self.dry_delay.go_back_int_s(RESAMPLE_DELAY);
 
             let balance = self.balance.get(i);
-            *x = lerp(*x, out, balance);
+            *sample = lerp(dry, y, balance);
         }
     }
 
@@ -123,8 +152,6 @@ impl Track {
         gain_out *= from_db(params.gain_out);
 
         self.gain_out.set(gain_out);
-
-        // self.gain_out.set(from_db(params.gain_out));
     }
 }
 
