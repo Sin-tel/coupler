@@ -5,6 +5,7 @@ mod logging;
 mod dsp;
 
 use engine::PluginEngine;
+use engine::RESAMPLE_DELAY;
 use logging::init_logging;
 
 use std::io::{self, Read, Write};
@@ -107,6 +108,10 @@ impl CouplerPlugin for Plugin {
 
     fn view(&mut self, _host: ViewHost, _parent: &ParentWindow) -> Self::View {
         NoView
+    }
+
+    fn latency(&self, _config: &Config) -> u64 {
+        RESAMPLE_DELAY
     }
 }
 
