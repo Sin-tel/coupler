@@ -26,9 +26,9 @@ use coupler::{bus::*, host::*, view::*};
 pub struct Params {
     #[param(id = 0, name = "Dry/Wet", range = 0.0..1.0, format = "{:.2}")]
     balance: f32,
-    #[param(id = 1, name = "Gain", range = -12.0..12.0, format = "{:.2}dB")]
+    #[param(id = 1, name = "Heat", range = -12.0..12.0, format = "{:.1}dB")]
     gain: f32,
-    #[param(id = 2, name = "Output gain", range = 0.0..12.0, format = "{:.2}dB")]
+    #[param(id = 2, name = "Output gain", range = 0.0..12.0, format = "{:.1}dB")]
     gain_out: f32,
 }
 
@@ -52,11 +52,11 @@ impl CouplerPlugin for Plugin {
 
     fn info() -> PluginInfo {
         PluginInfo {
-            name: "SimpleTube".to_string(),
+            name: "Sintel's Secret Mojo Sauce Tube".to_string(),
             version: "0.1.0".to_string(),
-            vendor: "Vendor".to_string(),
-            url: "https://example.com".to_string(),
-            email: "example@example.com".to_string(),
+            vendor: "Sintel".to_string(),
+            url: "https://sintel.website".to_string(),
+            email: "sintel.inquiries@gmail.com".to_string(),
             buses: vec![BusInfo {
                 name: "Main".to_string(),
                 dir: BusDir::InOut,
