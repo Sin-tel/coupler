@@ -90,6 +90,19 @@ impl CouplerPlugin for Plugin {
         self.params.get_param(id)
     }
 
+    fn parse_param(&self, id: ParamId, text: &str) -> Option<ParamValue> {
+        self.params.parse_param(id, text)
+    }
+
+    fn display_param(
+        &self,
+        id: ParamId,
+        value: ParamValue,
+        fmt: &mut Formatter,
+    ) -> Result<(), fmt::Error> {
+        self.params.display_param(id, value, fmt)
+    }
+
     fn save(&self, output: &mut impl Write) -> io::Result<()> {
         serde_json::to_writer(output, &self.params)?;
 
@@ -102,8 +115,8 @@ impl CouplerPlugin for Plugin {
         Ok(())
     }
 
-    fn engine(&mut self, config: Config) -> Self::Engine {
-        PluginEngine::new(self.params.clone(), config)
+    fn engine(&mut self, config: &Config) -> Self::Engine {
+        PluginEngine::new(self.params.clone(), config.clone())
     }
 
     fn view(&mut self, _host: ViewHost, _parent: &ParentWindow) -> Self::View {
