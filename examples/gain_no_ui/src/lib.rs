@@ -1,3 +1,4 @@
+use std::fmt::{self, Formatter};
 use std::io::{self, Read, Write};
 
 use serde::{Deserialize, Serialize};
@@ -66,6 +67,19 @@ impl Plugin for Gain {
         self.params.get_param(id)
     }
 
+    fn parse_param(&self, id: ParamId, text: &str) -> Option<ParamValue> {
+        self.params.parse_param(id, text)
+    }
+
+    fn display_param(
+        &self,
+        id: ParamId,
+        value: ParamValue,
+        fmt: &mut Formatter,
+    ) -> Result<(), fmt::Error> {
+        self.params.display_param(id, value, fmt)
+    }
+
     fn save(&self, output: &mut impl Write) -> io::Result<()> {
         serde_json::to_writer(output, &self.params)?;
 
@@ -78,7 +92,7 @@ impl Plugin for Gain {
         Ok(())
     }
 
-    fn engine(&mut self, _config: Config) -> Self::Engine {
+    fn engine(&mut self, _config: &Config) -> Self::Engine {
         GainEngine {
             params: self.params.clone(),
         }
