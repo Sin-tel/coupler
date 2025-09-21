@@ -1,9 +1,13 @@
 [package]
 name = "tube-clap"
 version = "0.1.0"
-authors = ["Micah Johnston <micah@photophore.systems>"]
+authors = ["Sintel"]
 edition = "2021"
 publish = false
+
+[package.metadata.coupler]
+name = "tube"
+formats = ["clap"]
 
 [lib]
 crate-type = ["cdylib"]
