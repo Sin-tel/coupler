@@ -111,8 +111,6 @@ impl Track {
         out *= self.gain_out.get(i);
 
         out
-        // let balance = self.balance.get(i);
-        // return lerp(x, out, balance);
     }
 
     fn process(&mut self, samples: &mut [f32]) {
@@ -182,6 +180,8 @@ impl PluginEngine {
 
     fn handle_event(&mut self, event: &Event) {
         if let Data::ParamChange { id, value } = event.data {
+            info!("id = {id:?}, value = {value:?}");
+
             self.params.set_param(id, value);
         }
     }
@@ -204,8 +204,10 @@ impl Engine for PluginEngine {
                 self.handle_event(event);
             }
 
-            for track in &mut self.tracks {
-                track.set_params(&self.params);
+            if events.len() > 0 {
+                for track in &mut self.tracks {
+                    track.set_params(&self.params);
+                }
             }
 
             for block in buffer.into_blocks().chunks(MAX_BUF_SIZE) {

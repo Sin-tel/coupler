@@ -4,10 +4,14 @@ mod logging;
 #[allow(dead_code)]
 mod dsp;
 
+use coupler::params::Enum;
+use coupler::params::ParamValue;
 use engine::PluginEngine;
 use engine::RESAMPLE_DELAY;
 use logging::init_logging;
 
+use std::fmt;
+use std::fmt::Formatter;
 use std::io::{self, Read, Write};
 
 use serde::{Deserialize, Serialize};
@@ -23,6 +27,13 @@ use coupler::plugin::PluginInfo;
 use coupler::view::ParentWindow;
 use coupler::{bus::*, host::*, view::*};
 
+#[derive(Debug, Clone, Serialize, Deserialize, Enum)]
+enum Mode {
+    A,
+    B,
+    C,
+}
+
 #[derive(CouplerParams, Serialize, Deserialize, Clone)]
 pub struct Params {
     #[param(id = 0, name = "Dry/Wet", range = 0.0..1.0, format = "{:.2}")]
@@ -31,6 +42,8 @@ pub struct Params {
     gain: f32,
     #[param(id = 2, name = "Output gain", range = 0.0..12.0, format = "{:.1}dB")]
     gain_out: f32,
+    #[param(id = 3, name = "Type")]
+    mode: Mode,
 }
 
 impl Default for Params {
@@ -39,6 +52,7 @@ impl Default for Params {
             balance: 1.0,
             gain: 0.0,
             gain_out: 0.0,
+            mode: Mode::A,
         }
     }
 }
