@@ -5,6 +5,9 @@ authors = ["Sintel"]
 edition = "2021"
 publish = false
 
+[package.metadata.coupler]
+formats = ["clap", "vst3"]
+
 [dependencies]
 coupler = { workspace = true, features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
